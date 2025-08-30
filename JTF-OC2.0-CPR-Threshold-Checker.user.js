@@ -4,7 +4,7 @@
 // @version      0.2
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
 // @author       SiliconRain
-// @match        https://www.torn.com/factions.php?step=your*
+// @match        https://www.torn.com/*
 // @updateURL    https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
 // @downloadURL  https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
 // @run-at       document-idle
@@ -13,8 +13,8 @@
 (() => {
     'use strict';
 
-    //const DEBUG = true;
-    //const log = (...args) => DEBUG && console.log('[OC Tweaks]', ...args);
+    const DEBUG = true;
+    const log = (...args) => DEBUG && console.log('[OC Tweaks]', ...args);
 
     // Thresholds table
     const thresholds = {
@@ -56,6 +56,7 @@
     const yellowAdjustment = 5;
 
     function getThreshold(crime, role, paused) {
+        log("Getting thresholds for: ",crime," - ",role);
         const table = thresholds[crime];
         const adjustment = paused?yellowAdjustment:0;
         if (table) {
@@ -70,12 +71,14 @@
     }
 
     function processOCPage() {
+        log("Processing page...");
         //For each recruiting crime...
         document.querySelectorAll('div[data-oc-id]').forEach(crimeDiv => {
             const crimeTitleEl = crimeDiv.querySelector('p.panelTitle___aoGuV');
             const crimeTitle = crimeTitleEl?.textContent?.trim();
             if (!crimeTitle) return;
             const crimeIsPaused = crimeDiv.querySelector('div.paused___oWz6S');
+            log("Found crime - ",crimeTitle);
             //For each open slot in the crime...
             crimeDiv.querySelectorAll('.wrapper___Lpz_D.waitingJoin___jq10k').forEach(slot => {
                 const roleEl = slot.querySelector('.title___UqFNy');
@@ -84,6 +87,7 @@
                 const role = roleEl.textContent.trim();
                 const chance = parseInt(chanceEl.textContent.trim(), 10);
                 var min = getThreshold(crimeTitle, role, crimeIsPaused);
+                log("Found open role - ",crimeTitle,", ",role,", with success chance ",chance," and threshold ",min);
                 slot.querySelectorAll('.oc-threshold').forEach(e => e.remove());
                 const note = document.createElement('div');
                 note.className = 'oc-threshold';
@@ -104,17 +108,17 @@
         });
     }
 
-    const target = document.body;
+    const target = document.querySelector(".tt-oc2-list") || document.body;
+    let processTimeout;
     const obs = new MutationObserver(() => {
-        const list = document.querySelector(".tt-oc2-list");
-        if (list) {
-            processOCPage();
-            obs.disconnect(); // stop watching
-        }
-});
-obs.observe(target, { childList: true, subtree: true });
+        clearTimeout(processTimeout);
+        processTimeout = setTimeout(processOCPage, 1000);
+        obs.disconnect(); // stop watching
+    });
+    obs.observe(target, { childList: true, subtree: true });
 
 // Initial run
+log("Initial run...");
 processOCPage();
 
 })();
