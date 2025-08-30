@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      0.3
+// @version      0.4
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -19,8 +19,8 @@
     // Thresholds table
     const thresholds = {
         "Break the Bank": {
-            "Muscle #3": 70,
-            "Thief #2":  70,
+            "Muscle #3": 69,
+            "Thief #2":  69,
             "Muscle #1": 65,
             "Robber":    65,
             "Muscle #2": 62,
