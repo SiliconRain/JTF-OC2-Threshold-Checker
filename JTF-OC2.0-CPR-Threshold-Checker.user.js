@@ -4,7 +4,7 @@
 // @version      0.2
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
 // @author       SiliconRain
-// @match        https://www.torn.com/*
+// @match        https://www.torn.com/factions.php?step=your*
 // @updateURL    https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
 // @downloadURL  https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
 // @run-at       document-idle
