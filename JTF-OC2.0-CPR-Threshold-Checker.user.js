@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      0.4
+// @version      0.5
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -14,7 +14,7 @@
     'use strict';
 
     const DEBUG = true;
-    const log = (...args) => DEBUG && console.log('[OC Tweaks]', ...args);
+    const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
 
     // Thresholds table
     const thresholds = {
@@ -29,8 +29,8 @@
         "Clinical Precision": {
             "Cat Burglar": 68,
             "Cleaner":     68,
-            "Imitator":    68,
-            "Assassin":    68,
+            "Imitator":    72,
+            "Assassin":    65,
         },
         "Blast from the Past": {
             "Muscle":      70,
@@ -40,13 +40,14 @@
             "Hacker":      65,
             "Picklock #2": 60,
         },
-        "Honey Trap":             { "All roles": 70 },
+        "Honey Trap":             { "All roles": 70, "All roles unstarted":65},
         "Bidding War":            { "All roles": 70 },
         "No Reserve":             { "All roles": 70 },
-        "Leave No Trace":         { "All roles": 70 },
-        "Counter Offer":          { "All roles": 70 },
-        "Snow Blind":             { "All roles": 70 },
-        "Stage Fright":           { "All roles": 70 },
+        "Leave No Trace":         { "All roles": 70, "All roles unstarted":65},
+        "Guardian Ángels":        { "All roles": 70, "All roles unstarted":65},
+        "Counter Offer":          { "All roles": 70, "All roles unstarted":65},
+        "Snow Blind":             { "All roles": 70, "All roles unstarted":65},
+        "Stage Fright":           { "All roles": 70, "All roles unstarted":65},
         "Market Forces":          { "All roles": 50 },
         "Smoke and Wing Mirrors": { "All roles": 50 },
         "Gaslight the Way":       { "All roles": 65 },
@@ -55,19 +56,29 @@
 
     const yellowAdjustment = 5;
 
-    function getThreshold(crime, role, paused) {
+    function getThreshold(crime, role, yellow, unstarted) {
         log("Getting thresholds for: ",crime," - ",role);
         const table = thresholds[crime];
-        const adjustment = paused?yellowAdjustment:0;
+        const adjustment = yellow?yellowAdjustment:0;
         if (table) {
             if (table[role] !== undefined){
+                log("Threshold for: ",crime," found to be exactly ",table[role]," and will be adjusted by -",adjustment);
                 return table[role]-adjustment;
             }
-            if (table["All roles"] !== undefined){
-                return table["All roles"]-adjustment;
+            if (unstarted){
+                if (table["All roles unstarted"] !== undefined){
+                    log("Threshold for the unstarted crime: ",crime," found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
+                    return table["All roles unstarted"]-adjustment;
+                }
+            }else{
+                if (table["All roles"] !== undefined){
+                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    return table["All roles"]-adjustment;
+                }
             }
         }
-        return thresholds["All other crimes"]["All roles"];
+        log("Threshold for: ",crime," was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
+        return thresholds["All other crimes"]["All roles"]-adjustment;
     }
 
     function processOCPage() {
@@ -77,8 +88,13 @@
             const crimeTitleEl = crimeDiv.querySelector('p.panelTitle___aoGuV');
             const crimeTitle = crimeTitleEl?.textContent?.trim();
             if (!crimeTitle) return;
-            const crimeIsPaused = crimeDiv.querySelector('div.paused___oWz6S');
             log("Found crime - ",crimeTitle);
+            const crimeIsPaused = crimeDiv.querySelector('div.paused___oWz6S');
+            const crimeIsExpiring = crimeDiv.querySelector('div.expiring___u6hcI');
+            const crimeIsYellow = !!(crimeIsPaused || crimeIsExpiring);
+            log("Crime is yellow? ",crimeIsYellow);
+            const crimeIsNotStarted = crimeDiv.querySelector('div.recruiting___bFcBU');
+            log("CrimeIsNotStarted is: ",crimeIsNotStarted);
             //For each open slot in the crime...
             crimeDiv.querySelectorAll('.wrapper___Lpz_D.waitingJoin___jq10k').forEach(slot => {
                 const roleEl = slot.querySelector('.title___UqFNy');
@@ -86,7 +102,7 @@
                 if (!roleEl || !chanceEl) return;
                 const role = roleEl.textContent.trim();
                 const chance = parseInt(chanceEl.textContent.trim(), 10);
-                var min = getThreshold(crimeTitle, role, crimeIsPaused);
+                var min = getThreshold(crimeTitle, role, crimeIsYellow, crimeIsNotStarted);
                 log("Found open role - ",crimeTitle,", ",role,", with success chance ",chance," and threshold ",min);
                 slot.querySelectorAll('.oc-threshold').forEach(e => e.remove());
                 const note = document.createElement('div');
@@ -107,18 +123,27 @@
             });
         });
     }
+    
+    // Wait until at least one OC block appears
+function waitForOCContent() {
+    if (document.querySelector('div[data-oc-id]')) {
+        log("OC content detected. Running processOCPage...");
+        processOCPage();
+        return; // stop – content is ready
+    }
 
-    const target = document.querySelector(".tt-oc2-list") || document.body;
-    let processTimeout;
-    const obs = new MutationObserver(() => {
-        clearTimeout(processTimeout);
-        processTimeout = setTimeout(processOCPage, 1000);
-        obs.disconnect(); // stop watching
+    // If not ready, keep watching
+    const observer = new MutationObserver(() => {
+        if (document.querySelector('div[data-oc-id]')) {
+            log("OC content appeared via MutationObserver. Running processOCPage...");
+            observer.disconnect();
+            processOCPage();
+        }
     });
-    obs.observe(target, { childList: true, subtree: true });
 
-// Initial run
-log("Initial run...");
-processOCPage();
+    observer.observe(document.body, { childList: true, subtree: true });
+}
 
+// Run the loader
+waitForOCContent();
 })();
