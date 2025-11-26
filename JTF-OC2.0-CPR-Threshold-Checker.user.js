@@ -18,6 +18,19 @@
 
     // Thresholds table
     const thresholds = {
+        "Ace in the Hole":{
+            "Hacker":     68,
+            "Muscle #2":  68,
+            "Imitator":   65,
+            "Muscle #1":  65,
+            "Driver":     58
+        },
+        "Stacking the Deck":{
+            "Impersonator": 72,
+            "Hacker":       66,
+            "Cat Burglar":  66,
+            "Driver":       56
+        },
         "Break the Bank": {
             "Muscle #3": 69,
             "Thief #2":  69,
