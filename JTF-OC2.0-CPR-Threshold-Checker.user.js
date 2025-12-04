@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      0.6
+// @version      0.7
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -13,7 +13,7 @@
 (() => {
     'use strict';
 
-    const DEBUG = false;
+    const DEBUG = true;
     const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
 
     // Thresholds table
@@ -21,14 +21,15 @@
         "Ace in the Hole":{
             "Hacker":     68,
             "Muscle #2":  68,
-            "Imitator":   65,
-            "Muscle #1":  65,
+            "Imitator":   64,
+            "Muscle #1":  64,
             "Driver":     58
         },
+        "Manifest Cruelty": { "All roles": 101 },
         "Stacking the Deck":{
             "Impersonator": 72,
             "Hacker":       66,
-            "Cat Burglar":  66,
+            "Cat Burglar":  64,
             "Driver":       56
         },
         "Break the Bank": {
@@ -53,8 +54,25 @@
             "Hacker":      65,
             "Picklock #2": 60,
         },
-        "Honey Trap":             { "All roles": 70, "All roles unstarted":65},
-        "Bidding War":            { "All roles": 70 },
+        "Bidding War": {
+            "Robber #3": 72,
+            "Robber #2": 68,
+            "Bomber #2": 68,
+            "Driver":    65,
+            "Bomber #1": 60,
+            "Robber #1": 60,
+        },
+        "Honey Trap": {
+            "Muscle #2":    70,
+            "Muscle #1":    65,
+            "Enforcer":     65
+        },
+        "Sneaky Git Grab": {
+            "Pickpocket":  75,
+            "Imitator":    65,
+            "Techie":      65,
+            "Hacker":      62
+        },
         "No Reserve":             { "All roles": 70 },
         "Leave No Trace":         { "All roles": 70, "All roles unstarted":65},
         "Guardian Ángels":        { "All roles": 70, "All roles unstarted":65},
@@ -70,27 +88,31 @@
     const yellowAdjustment = 5;
 
     function getThreshold(crime, role, yellow, unstarted) {
-        log("Getting thresholds for: ",crime," - ",role);
+        log("Getting thresholds for: `",crime,"` - ",role);
         const table = thresholds[crime];
         const adjustment = yellow?yellowAdjustment:0;
         if (table) {
+            log("Threshold table found for: ",crime," - looking up role value...");
             if (table[role] !== undefined){
-                log("Threshold for: ",crime," found to be exactly ",table[role]," and will be adjusted by -",adjustment);
+                log("Threshold for: `",crime,"` found to be exactly ",table[role]," and will be adjusted by -",adjustment);
                 return table[role]-adjustment;
             }
             if (unstarted){
                 if (table["All roles unstarted"] !== undefined){
-                    log("Threshold for the unstarted crime: ",crime," found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the unstarted crime: `",crime,"` found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
                     return table["All roles unstarted"]-adjustment;
+                }else{
+                    log("Threshold for the started crime: `",crime,"` found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    return table["All roles"]-adjustment;
                 }
             }else{
                 if (table["All roles"] !== undefined){
-                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the started crime: `",crime,"` found to be ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles"]-adjustment;
                 }
             }
         }
-        log("Threshold for: ",crime," was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
+        log("Threshold for: `",crime,"` was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
         return thresholds["All other crimes"]["All roles"]-adjustment;
     }
 
@@ -99,7 +121,11 @@
         //For each recruiting crime...
         document.querySelectorAll('div[data-oc-id]').forEach(crimeDiv => {
             const crimeTitleEl = crimeDiv.querySelector('p.panelTitle___aoGuV');
-            const crimeTitle = crimeTitleEl?.textContent?.trim();
+            const crimeTitle = crimeTitleEl?.textContent
+            ?.normalize("NFKC") // normalize Unicode
+            .replace(/\s+/g, ' ') // normalize all whitespace
+            .trim();
+
             if (!crimeTitle) return;
             log("Found crime - ",crimeTitle);
             const crimeIsPaused = crimeDiv.querySelector('div.paused___oWz6S');
@@ -128,7 +154,7 @@
                     note.style.whiteSpace = 'pre-line';
                     note.style.color = 'limegreen';
                 } else {
-                    note.textContent = `❌ Too low\n(Requires ≥ ${min})`;
+                    note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
                     note.style.whiteSpace = 'pre-line';
                     note.style.color = 'red';
                 }
@@ -136,7 +162,7 @@
             });
         });
     }
-    
+
     // Wait until at least one OC block appears
 function waitForOCContent() {
     if (document.querySelector('div[data-oc-id]')) {
