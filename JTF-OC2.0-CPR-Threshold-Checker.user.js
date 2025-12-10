@@ -87,10 +87,7 @@
 
     const yellowAdjustment = 5;
 
-    function getThreshold(crime, role, yellow, unstarted) {
-        /*to do
-            getThreshold(crime, level, role, yellow, unstarted);
-        */
+    function getThreshold(crime, level, role, yellow, unstarted) {
         log("Getting thresholds for: ",crime," - ",role);
         const table = thresholds[crime];
         const adjustment = yellow?yellowAdjustment:0;
@@ -122,7 +119,6 @@
             }
         }
         //if the crime was not found in the lookup table...
-        /*to do: 
         if(level<3){
             //if this is a low-level crime, return the "All other crimes" threshold value
             log("Threshold for: ",crime," was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
@@ -132,9 +128,6 @@
              log("No CPR thresholds defined for: ",crime,", so returning null");
             return null;
         }
-        */
-        log("Threshold for: `",crime,"` was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
-        return thresholds["All other crimes"]["All roles"]-adjustment;
     }
 
     function processOCPage() {
@@ -155,23 +148,20 @@
             log("Crime is yellow? ",crimeIsYellow);
             const crimeIsNotStarted = crimeDiv.querySelector('div.recruiting___bFcBU');
             log("CrimeIsNotStarted is: ",crimeIsNotStarted);
+            
+            //Scrape the level of the crime
+            const levelEl = crimeDiv.querySelector('.levelValue___TE4qC');
+            const level = parseInt(levelEl.textContent.trim(), 10);
+            log("Crime level is: ",level);
+
             //For each open slot in the crime...
             crimeDiv.querySelectorAll('.wrapper___Lpz_D.waitingJoin___jq10k').forEach(slot => {
                 const roleEl = slot.querySelector('.title___UqFNy');
                 const chanceEl = slot.querySelector('.successChance___ddHsR');
-                /*to do:
-                    Scrape the level of the crime
-                    const levelEl = slot.querySelector('### TO DO ###');
-                    const level = parseInt(levelEl.textContent.trim(), 10);
-                    log("Crime level is: ",level);
-                */
                 if (!roleEl || !chanceEl) return;
                 const role = roleEl.textContent.trim();
                 const chance = parseInt(chanceEl.textContent.trim(), 10);
-                /*to do:
-                    var min = getThreshold(crimeTitle, level, role, crimeIsYellow, crimeIsNotStarted);
-                */
-                var min = getThreshold(crimeTitle, role, crimeIsYellow, crimeIsNotStarted);
+                var min = getThreshold(crimeTitle, level, role, crimeIsYellow, crimeIsNotStarted);
                 log("Found open role - ",crimeTitle,", ",role,", with success chance ",chance," and threshold ",min);
                 slot.querySelectorAll('.oc-threshold').forEach(e => e.remove());
                 const note = document.createElement('div');
@@ -179,24 +169,23 @@
                 note.style.fontSize = '12px';
                 note.style.fontWeight = 'bold';
                 note.style.textAlign = 'center';
-                /*to do:
-                    if (!min){
-                        //if min is null, then we don't know what the CPR thresholds for this crime are
-                        note.textContent = `⚠️ Threshold unknown\nCheck latest guidance from Miz`;
-                        note.style.color = 'orange';
+                if (!min){
+                    //if min is null, then we don't know what the CPR thresholds for this crime are
+                    note.textContent = `⚠️ Threshold unknown\nCheck latest guidance from Miz`;
+                    note.style.color = 'orange';
+                    note.style.whiteSpace = 'pre-line';
+                }else{
+                    if (chance >= min) {
+                        //if the CPR pass rate is greater than or equal to the threshold for this crime role
+                        note.textContent = `✅ OK\n(Requires ≥ ${min})`;
                         note.style.whiteSpace = 'pre-line';
-                    }else{
-                */
-                if (chance >= min) {
-                    //if the CPR pass rate is greater than or equal to the threshold for this crime role
-                    note.textContent = `✅ OK\n(Requires ≥ ${min})`;
-                    note.style.whiteSpace = 'pre-line';
-                    note.style.color = 'limegreen';
-                } else {
-                    //if the CPR pass rate is less than the threshold for this crime role
-                    note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
-                    note.style.whiteSpace = 'pre-line';
-                    note.style.color = '#b30000';
+                        note.style.color = 'limegreen';
+                    } else {
+                        //if the CPR pass rate is less than the threshold for this crime role
+                        note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
+                        note.style.whiteSpace = 'pre-line';
+                        note.style.color = '#b30000';
+                    }
                 }
                 slot.prepend(note);
             });
