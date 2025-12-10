@@ -88,30 +88,51 @@
     const yellowAdjustment = 5;
 
     function getThreshold(crime, role, yellow, unstarted) {
-        log("Getting thresholds for: `",crime,"` - ",role);
+        /*to do
+            getThreshold(crime, level, role, yellow, unstarted);
+        */
+        log("Getting thresholds for: ",crime," - ",role);
         const table = thresholds[crime];
         const adjustment = yellow?yellowAdjustment:0;
+        
         if (table) {
+            //if the crime was found in the threshold table, try and lookup a threshold for the role in this crime
             log("Threshold table found for: ",crime," - looking up role value...");
             if (table[role] !== undefined){
-                log("Threshold for: `",crime,"` found to be exactly ",table[role]," and will be adjusted by -",adjustment);
+                //if the role name was found in the table for this crime, return it minus any adjustment for yellow crimes
+                log("Threshold for: ",crime," found to be exactly ",table[role]," and will be adjusted by -",adjustment);
                 return table[role]-adjustment;
             }
+            //if the crime was found but the role was not...
             if (unstarted){
+                //if the crime is unstarted, check if there is an alternate threshold for unstarted crimes of this type
                 if (table["All roles unstarted"] !== undefined){
-                    log("Threshold for the unstarted crime: `",crime,"` found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the unstarted crime: ",crime," found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
                     return table["All roles unstarted"]-adjustment;
                 }else{
-                    log("Threshold for the started crime: `",crime,"` found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles"]-adjustment;
                 }
             }else{
+                //if there was no alternate threshold for unstarted crimes, return the "all roles" threshold for this crime
                 if (table["All roles"] !== undefined){
-                    log("Threshold for the started crime: `",crime,"` found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles"]-adjustment;
                 }
             }
         }
+        //if the crime was not found in the lookup table...
+        /*to do: 
+        if(level<3){
+            //if this is a low-level crime, return the "All other crimes" threshold value
+            log("Threshold for: ",crime," was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
+            return thresholds["All other crimes"]["All roles"]-adjustment;
+        }else{
+            //if this crime is level three or higher, return null to indicate we do not know what the thresholds for this crime should be
+             log("No CPR thresholds defined for: ",crime,", so returning null");
+            return null;
+        }
+        */
         log("Threshold for: `",crime,"` was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
         return thresholds["All other crimes"]["All roles"]-adjustment;
     }
@@ -138,9 +159,18 @@
             crimeDiv.querySelectorAll('.wrapper___Lpz_D.waitingJoin___jq10k').forEach(slot => {
                 const roleEl = slot.querySelector('.title___UqFNy');
                 const chanceEl = slot.querySelector('.successChance___ddHsR');
+                /*to do:
+                    Scrape the level of the crime
+                    const levelEl = slot.querySelector('### TO DO ###');
+                    const level = parseInt(levelEl.textContent.trim(), 10);
+                    log("Crime level is: ",level);
+                */
                 if (!roleEl || !chanceEl) return;
                 const role = roleEl.textContent.trim();
                 const chance = parseInt(chanceEl.textContent.trim(), 10);
+                /*to do:
+                    var min = getThreshold(crimeTitle, level, role, crimeIsYellow, crimeIsNotStarted);
+                */
                 var min = getThreshold(crimeTitle, role, crimeIsYellow, crimeIsNotStarted);
                 log("Found open role - ",crimeTitle,", ",role,", with success chance ",chance," and threshold ",min);
                 slot.querySelectorAll('.oc-threshold').forEach(e => e.remove());
@@ -149,14 +179,24 @@
                 note.style.fontSize = '12px';
                 note.style.fontWeight = 'bold';
                 note.style.textAlign = 'center';
+                /*to do:
+                    if (!min){
+                        //if min is null, then we don't know what the CPR thresholds for this crime are
+                        note.textContent = `⚠️ Threshold unknown\nCheck latest guidance from Miz`;
+                        note.style.color = 'orange';
+                        note.style.whiteSpace = 'pre-line';
+                    }else{
+                */
                 if (chance >= min) {
+                    //if the CPR pass rate is greater than or equal to the threshold for this crime role
                     note.textContent = `✅ OK\n(Requires ≥ ${min})`;
                     note.style.whiteSpace = 'pre-line';
                     note.style.color = 'limegreen';
                 } else {
+                    //if the CPR pass rate is less than the threshold for this crime role
                     note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
                     note.style.whiteSpace = 'pre-line';
-                    note.style.color = 'red';
+                    note.style.color = '#b30000';
                 }
                 slot.prepend(note);
             });
