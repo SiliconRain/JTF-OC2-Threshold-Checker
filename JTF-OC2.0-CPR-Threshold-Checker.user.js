@@ -13,7 +13,7 @@
 (() => {
     'use strict';
 
-    const DEBUG = true;
+    const DEBUG = false;
     const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
 
     // Thresholds table
