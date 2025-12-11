@@ -184,7 +184,7 @@
                         //if the CPR pass rate is less than the threshold for this crime role
                         note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
                         note.style.whiteSpace = 'pre-line';
-                        note.style.color = '#cc0000';
+                        note.style.color = '#dd0000';
                     }
                 }
                 slot.prepend(note);
