@@ -97,23 +97,23 @@
             log("Threshold table found for: ",crime," - looking up role value...");
             if (table[role] !== undefined){
                 //if the role name was found in the table for this crime, return it minus any adjustment for yellow crimes
-                log("Threshold for: ",crime," found to be exactly ",table[role]," and will be adjusted by -",adjustment);
+                log("A: Threshold for: ",crime," found to be exactly ",table[role]," and will be adjusted by -",adjustment);
                 return table[role]-adjustment;
             }
             //if the crime was found but the role was not...
             if (unstarted){
                 //if the crime is unstarted, check if there is an alternate threshold for unstarted crimes of this type
                 if (table["All roles unstarted"] !== undefined){
-                    log("Threshold for the unstarted crime: ",crime," found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
+                    log("B: Threshold for this role (",role,") in unstarted crime: ",crime," was not found, so defaulting to special unstarted value of ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles unstarted"]-adjustment;
                 }else{
-                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    log("C: Threshold for this role (",role,") in unstarted crime: ",crime," was not found, so defaulting to ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles"]-adjustment;
                 }
             }else{
                 //if there was no alternate threshold for unstarted crimes, return the "all roles" threshold for this crime
                 if (table["All roles"] !== undefined){
-                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    log("D: Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles"]-adjustment;
                 }
             }
@@ -121,11 +121,11 @@
         //if the crime was not found in the lookup table...
         if(level<3){
             //if this is a low-level crime, return the "All other crimes" threshold value
-            log("Threshold for: ",crime," was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
+            log("E: Threshold for: ",crime," was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
             return thresholds["All other crimes"]["All roles"]-adjustment;
         }else{
             //if this crime is level three or higher, return null to indicate we do not know what the thresholds for this crime should be
-             log("No CPR thresholds defined for: ",crime,", so returning null");
+             log("F: No CPR thresholds defined for: ",crime,", so returning null");
             return null;
         }
     }
