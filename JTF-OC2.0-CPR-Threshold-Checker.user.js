@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      0.7
+// @version      0.8
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -13,7 +13,7 @@
 (() => {
     'use strict';
 
-    const DEBUG = true;
+    const DEBUG = false;
     const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
 
     // Thresholds table
@@ -87,33 +87,47 @@
 
     const yellowAdjustment = 5;
 
-    function getThreshold(crime, role, yellow, unstarted) {
-        log("Getting thresholds for: `",crime,"` - ",role);
+    function getThreshold(crime, level, role, yellow, unstarted) {
+        log("Getting thresholds for: ",crime," - ",role);
         const table = thresholds[crime];
         const adjustment = yellow?yellowAdjustment:0;
+
         if (table) {
+            //if the crime was found in the threshold table, try and lookup a threshold for the role in this crime
             log("Threshold table found for: ",crime," - looking up role value...");
             if (table[role] !== undefined){
-                log("Threshold for: `",crime,"` found to be exactly ",table[role]," and will be adjusted by -",adjustment);
+                //if the role name was found in the table for this crime, return it minus any adjustment for yellow crimes
+                log("Threshold for: ",crime," found to be exactly ",table[role]," and will be adjusted by -",adjustment);
                 return table[role]-adjustment;
             }
+            //if the crime was found but the role was not...
             if (unstarted){
+                //if the crime is unstarted, check if there is an alternate threshold for unstarted crimes of this type
                 if (table["All roles unstarted"] !== undefined){
-                    log("Threshold for the unstarted crime: `",crime,"` found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the unstarted crime: ",crime," found to be ",table["All roles unstarted"]," and will be adjusted by -",adjustment);
                     return table["All roles unstarted"]-adjustment;
                 }else{
-                    log("Threshold for the started crime: `",crime,"` found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles"]-adjustment;
                 }
             }else{
+                //if there was no alternate threshold for unstarted crimes, return the "all roles" threshold for this crime
                 if (table["All roles"] !== undefined){
-                    log("Threshold for the started crime: `",crime,"` found to be ",table["All roles"]," and will be adjusted by -",adjustment);
+                    log("Threshold for the started crime: ",crime," found to be ",table["All roles"]," and will be adjusted by -",adjustment);
                     return table["All roles"]-adjustment;
                 }
             }
         }
-        log("Threshold for: `",crime,"` was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
-        return thresholds["All other crimes"]["All roles"]-adjustment;
+        //if the crime was not found in the lookup table...
+        if(level<3){
+            //if this is a low-level crime, return the "All other crimes" threshold value
+            log("Threshold for: ",crime," was not found so is defaulted to ",thresholds["All other crimes"]["All roles"]," and will be adjusted by -",adjustment);
+            return thresholds["All other crimes"]["All roles"]-adjustment;
+        }else{
+            //if this crime is level three or higher, return null to indicate we do not know what the thresholds for this crime should be
+             log("No CPR thresholds defined for: ",crime,", so returning null");
+            return null;
+        }
     }
 
     function processOCPage() {
@@ -134,6 +148,12 @@
             log("Crime is yellow? ",crimeIsYellow);
             const crimeIsNotStarted = crimeDiv.querySelector('div.recruiting___bFcBU');
             log("CrimeIsNotStarted is: ",crimeIsNotStarted);
+
+            //Scrape the level of the crime
+            const levelEl = crimeDiv.querySelector('.levelValue___TE4qC');
+            const level = parseInt(levelEl.textContent.trim(), 10);
+            log("Crime level is: ",level);
+
             //For each open slot in the crime...
             crimeDiv.querySelectorAll('.wrapper___Lpz_D.waitingJoin___jq10k').forEach(slot => {
                 const roleEl = slot.querySelector('.title___UqFNy');
@@ -141,7 +161,7 @@
                 if (!roleEl || !chanceEl) return;
                 const role = roleEl.textContent.trim();
                 const chance = parseInt(chanceEl.textContent.trim(), 10);
-                var min = getThreshold(crimeTitle, role, crimeIsYellow, crimeIsNotStarted);
+                var min = getThreshold(crimeTitle, level, role, crimeIsYellow, crimeIsNotStarted);
                 log("Found open role - ",crimeTitle,", ",role,", with success chance ",chance," and threshold ",min);
                 slot.querySelectorAll('.oc-threshold').forEach(e => e.remove());
                 const note = document.createElement('div');
@@ -149,14 +169,23 @@
                 note.style.fontSize = '12px';
                 note.style.fontWeight = 'bold';
                 note.style.textAlign = 'center';
-                if (chance >= min) {
-                    note.textContent = `✅ OK\n(Requires ≥ ${min})`;
+                if (!min){
+                    //if min is null, then we don't know what the CPR thresholds for this crime are
+                    note.textContent = `⚠️\nNot yet defined`;
+                    note.style.color = 'orange';
                     note.style.whiteSpace = 'pre-line';
-                    note.style.color = 'limegreen';
-                } else {
-                    note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
-                    note.style.whiteSpace = 'pre-line';
-                    note.style.color = 'red';
+                }else{
+                    if (chance >= min) {
+                        //if the CPR pass rate is greater than or equal to the threshold for this crime role
+                        note.textContent = `✅ OK\n(Requires ≥ ${min})`;
+                        note.style.whiteSpace = 'pre-line';
+                        note.style.color = 'limegreen';
+                    } else {
+                        //if the CPR pass rate is less than the threshold for this crime role
+                        note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
+                        note.style.whiteSpace = 'pre-line';
+                        note.style.color = '#cc0000';
+                    }
                 }
                 slot.prepend(note);
             });
@@ -164,25 +193,31 @@
     }
 
     // Wait until at least one OC block appears
-function waitForOCContent() {
-    if (document.querySelector('div[data-oc-id]')) {
-        log("OC content detected. Running processOCPage...");
-        processOCPage();
-        return; // stop – content is ready
+    function waitForOCContent() {
+        if (document.querySelector('div[data-oc-id]')) {
+            log("OC content detected. Running processOCPage...");
+            processOCPage();
+            return; // stop – content is ready
+        }
+
+        // If not ready, keep watching
+        const observer = new MutationObserver(() => {
+            if (document.querySelector('div[data-oc-id]')) {
+                log("OC content appeared via MutationObserver. Running processOCPage...");
+                observer.disconnect();
+                processOCPage();
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    // If not ready, keep watching
-    const observer = new MutationObserver(() => {
-        if (document.querySelector('div[data-oc-id]')) {
-            log("OC content appeared via MutationObserver. Running processOCPage...");
-            observer.disconnect();
-            processOCPage();
-        }
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-}
-
+//Add event handler to "Recruiting" button to re-run the script if switching from another tab on the OCs page
+const recruitingButton = document.querySelector('button.button___cwmLf')
+recruitingButton.addEventListener("click", function (e) {
+    setTimeout(function(){processOCPage();}, 1000);
+});
 // Run the loader
 waitForOCContent();
+
 })();
