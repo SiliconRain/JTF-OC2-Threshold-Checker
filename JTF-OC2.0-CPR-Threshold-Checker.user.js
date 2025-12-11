@@ -91,7 +91,7 @@
         log("Getting thresholds for: ",crime," - ",role);
         const table = thresholds[crime];
         const adjustment = yellow?yellowAdjustment:0;
-        
+
         if (table) {
             //if the crime was found in the threshold table, try and lookup a threshold for the role in this crime
             log("Threshold table found for: ",crime," - looking up role value...");
@@ -148,7 +148,7 @@
             log("Crime is yellow? ",crimeIsYellow);
             const crimeIsNotStarted = crimeDiv.querySelector('div.recruiting___bFcBU');
             log("CrimeIsNotStarted is: ",crimeIsNotStarted);
-            
+
             //Scrape the level of the crime
             const levelEl = crimeDiv.querySelector('.levelValue___TE4qC');
             const level = parseInt(levelEl.textContent.trim(), 10);
@@ -171,7 +171,7 @@
                 note.style.textAlign = 'center';
                 if (!min){
                     //if min is null, then we don't know what the CPR thresholds for this crime are
-                    note.textContent = `⚠️ Threshold unknown\nCheck latest guidance from Miz`;
+                    note.textContent = `⚠️\nNot yet defined`;
                     note.style.color = 'orange';
                     note.style.whiteSpace = 'pre-line';
                 }else{
@@ -184,7 +184,7 @@
                         //if the CPR pass rate is less than the threshold for this crime role
                         note.textContent = (min==101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
                         note.style.whiteSpace = 'pre-line';
-                        note.style.color = '#b30000';
+                        note.style.color = '#cc0000';
                     }
                 }
                 slot.prepend(note);
@@ -193,25 +193,31 @@
     }
 
     // Wait until at least one OC block appears
-function waitForOCContent() {
-    if (document.querySelector('div[data-oc-id]')) {
-        log("OC content detected. Running processOCPage...");
-        processOCPage();
-        return; // stop – content is ready
+    function waitForOCContent() {
+        if (document.querySelector('div[data-oc-id]')) {
+            log("OC content detected. Running processOCPage...");
+            processOCPage();
+            return; // stop – content is ready
+        }
+
+        // If not ready, keep watching
+        const observer = new MutationObserver(() => {
+            if (document.querySelector('div[data-oc-id]')) {
+                log("OC content appeared via MutationObserver. Running processOCPage...");
+                observer.disconnect();
+                processOCPage();
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    // If not ready, keep watching
-    const observer = new MutationObserver(() => {
-        if (document.querySelector('div[data-oc-id]')) {
-            log("OC content appeared via MutationObserver. Running processOCPage...");
-            observer.disconnect();
-            processOCPage();
-        }
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-}
-
+//Add event handler to "Recruiting" button to re-run the script if switching from another tab on the OCs page
+const recruitingButton = document.querySelector('button.button___cwmLf')
+recruitingButton.addEventListener("click", function (e) {
+    setTimeout(function(){processOCPage();}, 1000);
+});
 // Run the loader
 waitForOCContent();
+
 })();
