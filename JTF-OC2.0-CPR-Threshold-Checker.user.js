@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      0.8
+// @version      0.9
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -29,17 +29,17 @@
 
     async function loadThresholdsFromSheet() {
         if (thresholdsLoaded) return sheetThresholds;
-    
+
         try {
             const response = await fetch(THRESHOLDS_CSV_URL);
             const csvText = await response.text();
-    
+
             sheetThresholds = parseThresholdCSV(csvText);
             thresholdsLoaded = true;
-    
+
             console.log("[JTF OC Thresholds] Thresholds loaded from Google Sheets");
             return sheetThresholds;
-    
+
         } catch (err) {
             console.error("[JTF OC Thresholds] Failed to load thresholds", err);
             return null;
@@ -55,19 +55,19 @@
             headers.forEach((h, i) => row[h] = values[i] || "");
             return row;
         });
-    
+
         return rows;
     }
 
     async function getThreshold(crime, level, role, isYellow, isNotStarted) {
         log("Getting thresholds for: ",crime," - ",role);
-        const adjustment = isYellow ? yellowAdjustment : 0;//if isYellow is true, we will adjust all thresholds by the value of the global 'yellowAdjustment' 
+        const adjustment = isYellow ? yellowAdjustment : 0;//if isYellow is true, we will adjust all thresholds by the value of the global 'yellowAdjustment'
         const rows = await loadThresholdsFromSheet();
         if (!rows){
             log("!!! No rows were found in the threshold sheet! Something went wrong !!!");
             return null;
         }
-        
+
         // 1. Exact crime + exact role
         let match = rows.find(r =>
             r.Crime === crime &&
@@ -75,7 +75,7 @@
         );
         if(match) log("Scenario A: Threshold for ",role," in ",crime," found to be ",match.DefaultThreshold);
 
-    
+
         // 2. Exact crime + All roles
         if (!match) {
             match = rows.find(r =>
@@ -92,12 +92,12 @@
                 r.Role === "All roles"
             );
         }
-    
+
         if (!match){
             log("Scenario E: no thresholds found for ",crime,", and the level is above 2, so returning UNKNOWN_THRESHOLD");
             return UNKNOWN_THRESHOLD;
         }
-    
+
         if (isNotStarted && match.UnstartedThreshold != null) {
             log("Scenario D: no thresholds found for ",crime,", the level is 1 or 2 AND the crime is unstarted, so using all-roles unstarted threshold of ",match.UnstartedThreshold);
             return Number(match.UnstartedThreshold)-adjustment;
@@ -106,7 +106,7 @@
         log("Scenario C: no thresholds found for ",crime,", and the level is 1 or 2, so using all-roles threshold of ",match.DefaultThreshold);
         return Number(match.DefaultThreshold)-adjustment;
     }
-    
+
     async function processOCPage() {
         log("Processing page...");
         //For each recruiting crime...
@@ -147,7 +147,7 @@
                 note.style.fontWeight = 'bold';
                 note.style.textAlign = 'center';
                 if(min === null) { // If min is null, something went wrong with getting the threshold from the published CSV, so bail out
-                    log(">> There was an error looking up the threshold for ",crimeTitle,", ",role,". Bailing out and moving to the next slot..."); 
+                    log(">> There was an error looking up the threshold for ",crimeTitle,", ",role,". Bailing out and moving to the next slot...");
                     return;
                 }
                 if (min === UNKNOWN_THRESHOLD){
@@ -169,8 +169,8 @@
                     }
                 }
                 slot.prepend(note);
-            });
-        });
+            };
+        };
     }
 
     // Wait until at least one OC block appears
