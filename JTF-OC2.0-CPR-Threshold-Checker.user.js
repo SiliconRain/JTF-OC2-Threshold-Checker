@@ -7,6 +7,9 @@
 // @match        https://www.torn.com/factions.php?step=your*
 // @updateURL    https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
 // @downloadURL  https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
+// @grant        GM_xmlhttpRequest
+// @connect      docs.google.com
+// @connect      googleusercontent.com
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -15,7 +18,7 @@
 
     //Globals:
     //----------------
-    const DEBUG = false;
+    const DEBUG = true;
     const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
     const yellowAdjustment = 5;
     const UNKNOWN_THRESHOLD = -1;
@@ -30,20 +33,27 @@
     async function loadThresholdsFromSheet() {
         if (thresholdsLoaded) return sheetThresholds;
 
-        try {
-            const response = await fetch(THRESHOLDS_CSV_URL);
-            const csvText = await response.text();
-
-            sheetThresholds = parseThresholdCSV(csvText);
-            thresholdsLoaded = true;
-
-            console.log("[JTF OC Thresholds] Thresholds loaded from Google Sheets");
-            return sheetThresholds;
-
-        } catch (err) {
-            console.error("[JTF OC Thresholds] Failed to load thresholds", err);
-            return null;
-        }
+        return new Promise((resolve) => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: THRESHOLDS_CSV_URL,
+                onload: (response) => {
+                    try {
+                        sheetThresholds = parseThresholdCSV(response.responseText);
+                        thresholdsLoaded = true;
+                        console.log("[JTF OC Thresholds] Thresholds loaded from Google Sheets");
+                        resolve(sheetThresholds);
+                    } catch (err) {
+                        console.error("[JTF OC Thresholds] Failed to parse thresholds", err);
+                        resolve(null);
+                    }
+                },
+                onerror: (err) => {
+                    console.error("[JTF OC Thresholds] Failed to load thresholds", err);
+                    resolve(null);
+                }
+            });
+        });
     }
 
     function parseThresholdCSV(csvText) {
@@ -86,24 +96,27 @@
         if(match) log("Scenario B: Threshold for ",role," not found in ",crime,", so using all-roles threshold of ",match.DefaultThreshold);
 
         // 3. All other crimes fallback (optional)
-        if (!match && level<=2) {
+        if (!match) {
             match = rows.find(r =>
                 r.Crime === "All other crimes" &&
                 r.Role === "All roles"
             );
+            if (!match){
+                log("!!!! Uh oh -  A default 'all other crimes' fallback was not found in the thresholds CSV!");
+                return null;
+            }
+            if(level>2){
+                log("Scenario D: no thresholds found for ",crime,", and the level is above 2, so returning UNKNOWN_THRESHOLD (value: ",UNKNOWN_THRESHOLD,")");
+                return UNKNOWN_THRESHOLD;
+            }
+            log("Scenario C: no thresholds found for ",crime,", and the level is 1 or 2, so returning the 'All other crimes' threshold");
         }
 
-        if (!match){
-            log("Scenario E: no thresholds found for ",crime,", and the level is above 2, so returning UNKNOWN_THRESHOLD");
-            return UNKNOWN_THRESHOLD;
-        }
-
-        if (isNotStarted && match.UnstartedThreshold != null) {
-            log("Scenario D: no thresholds found for ",crime,", the level is 1 or 2 AND the crime is unstarted, so using all-roles unstarted threshold of ",match.UnstartedThreshold);
+        if (isNotStarted && match.UnstartedThreshold != "") {
+            log("Crime ",crime,", is unstarted and there is an unstarted override threshold for this crime and role, so returning the unstarted threshold of ",match.UnstartedThreshold,"-",adjustment);
             return Number(match.UnstartedThreshold)-adjustment;
         }
-
-        log("Scenario C: no thresholds found for ",crime,", and the level is 1 or 2, so using all-roles threshold of ",match.DefaultThreshold);
+        log("Crime ",crime,", is either started or and there is no unstarted override threshold for this crime and role, so returning the default threshold of ",match.DefaultThreshold,"-",adjustment);
         return Number(match.DefaultThreshold)-adjustment;
     }
 
@@ -152,7 +165,7 @@
                 }
                 if (min === UNKNOWN_THRESHOLD){
                     //if min is UNKNOWN_THRESHOLD, then we don't know what the CPR thresholds for this crime are
-                    note.textContent = `⚠️\nNot yet defined`;
+                    note.textContent = `⚠️ Undefined ⚠️\nCheck with Miz`;
                     note.style.color = 'orange';
                     note.style.whiteSpace = 'pre-line';
                 }else{
@@ -165,7 +178,7 @@
                         //if the CPR pass rate is less than the threshold for this crime role
                         note.textContent = (min===101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
                         note.style.whiteSpace = 'pre-line';
-                        note.style.color = '#dd0000';
+                        note.style.color = '#cc0000';
                     }
                 }
                 slot.prepend(note);
