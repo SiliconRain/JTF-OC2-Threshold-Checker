@@ -14,7 +14,7 @@
     'use strict';
 
     // --- Debugging helpers ---
-    const DEBUG = true;
+    const DEBUG = false;
     const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
 
     const yellowAdjustment = 5; // reduce threshold if crime is paused/expiring
@@ -118,36 +118,36 @@
 
     // --- Threshold calculation ---
     function getThreshold(crime, level, role, yellow, unstarted) {
-        //log("Getting thresholds for:", crime, "-", role);
+        log("Getting thresholds for:", crime, "-", role);
         const table = thresholds[crime];
         const adjustment = yellow ? yellowAdjustment : 0; // reduce threshold if paused/expiring
 
         if (table) {
             if (table[role] !== undefined) { // exact match for role
-                //log("Exact threshold found:", table[role], "- adjustment:", adjustment);
+                log("Exact threshold found:", table[role], "- adjustment:", adjustment);
                 return table[role] - adjustment;
             }
             if (unstarted) { // crime hasn't started yet
                 if (table["All roles unstarted"] !== undefined) {
-                    //log("Unstarted threshold found:", table["All roles unstarted"], "- adjustment:", adjustment);
+                    log("Unstarted threshold found:", table["All roles unstarted"], "- adjustment:", adjustment);
                     return table["All roles unstarted"] - adjustment;
                 } else if (table["All roles"] !== undefined) { // fallback to started threshold
-                    //log("Started threshold fallback:", table["All roles"], "- adjustment:", adjustment);
+                    log("Started threshold fallback:", table["All roles"], "- adjustment:", adjustment);
                     return table["All roles"] - adjustment;
                 }
             } else if (table["All roles"] !== undefined) { // crime already started
-                //log("Started threshold found:", table["All roles"], "- adjustment:", adjustment);
+                log("Started threshold found:", table["All roles"], "- adjustment:", adjustment);
                 return table["All roles"] - adjustment;
             }
         }
 
         // fallback for low-level crimes or undefined thresholds
         if (level < 3) {
-            //log("Low-level crime fallback threshold:", thresholds["All other crimes"]["All roles"], "- adjustment:", adjustment);
+            log("Low-level crime fallback threshold:", thresholds["All other crimes"]["All roles"], "- adjustment:", adjustment);
             return thresholds["All other crimes"]["All roles"] - adjustment;
         }
 
-        //log("No CPR thresholds defined for:", crime);
+        log("No CPR thresholds defined for:", crime);
         return null;
     }
 
