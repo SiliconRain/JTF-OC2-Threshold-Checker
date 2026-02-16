@@ -123,13 +123,6 @@
         log("Processing page...");
         //For each recruiting crime...
         for (const crimeDiv of document.querySelectorAll('div[data-oc-id]')) {
-            const crimeTitleEl = crimeDiv.querySelector('p.panelTitle___aoGuV');
-            const crimeTitle = crimeTitleEl?.textContent
-            ?.normalize("NFKC") // normalize Unicode
-            .replace(/\s+/g, ' ') // normalize all whitespace
-            .trim();
-
-        crimeDivs.forEach(crimeDiv => {
             const crimeTitleEl = crimeDiv.querySelector('p[class^="panelTitle"]');
             const crimeTitle = crimeTitleEl?.textContent?.normalize("NFKC").replace(/\s+/g,' ').trim();
             if (!crimeTitle) return;
@@ -144,8 +137,9 @@
             if (!levelEl) { log("No level element found for", crimeTitle); return; }
             const level = parseInt(levelEl.textContent.trim(), 10);
 
-            const slots = crimeDiv.querySelectorAll('[class^="wrapper"][class*="waitingJoin"]');
-            slots.forEach(slot => {
+            //const slots = crimeDiv.querySelectorAll('[class^="wrapper"][class*="waitingJoin"]');
+            //slots.forEach(slot => {
+            for (const slot of crimeDiv.querySelectorAll('[class^="wrapper"][class*="waitingJoin"]')) {
                 const roleEl = slot.querySelector('[class^="title"]');
                 const chanceEl = slot.querySelector('[class^="successChance"]');
                 if (!roleEl || !chanceEl) return;
