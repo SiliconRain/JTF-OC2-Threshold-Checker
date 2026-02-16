@@ -68,7 +68,20 @@
                 },
                 onerror: (err) => {
                     console.error("[JTF OC Thresholds] Failed to load thresholds", err);
-                    resolve(null);
+                    const staleCsv = GM_getValue(CACHE_CSV_KEY, "");
+                    if (staleCsv) {
+                        try {
+                            sheetThresholds = parseThresholdCSV(staleCsv);
+                            thresholdsLoaded = true;
+                            console.log("[JTF OC Thresholds] Using stale cache due to network error");
+                            resolve(staleCsv ? sheetThresholds : null);
+                        } catch (parseErr) {
+                            console.error("[JTF OC Thresholds] Stale cache parse failed", parseErr);
+                            resolve(null);
+                        }
+                    } else {
+                        resolve(null);
+                    }
                 }
             });
         });
