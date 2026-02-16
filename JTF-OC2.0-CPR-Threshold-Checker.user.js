@@ -2,7 +2,7 @@
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
 // @version      1.0
-// @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page
+// @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page (SPA-safe, debug-ready)
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
 // @updateURL    https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
@@ -16,9 +16,8 @@
 (() => {
     'use strict';
 
-    //Globals:
-    //----------------
-    const DEBUG = true;
+    // --- Debugging helpers ---
+    const DEBUG = false;
     const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
     const yellowAdjustment = 5;
     const UNKNOWN_THRESHOLD = -1;
@@ -120,98 +119,144 @@
         return Number(match.DefaultThreshold)-adjustment;
     }
 
+    function showLoadingBanner(container) {
+        const existing = document.getElementById('oc-threshold-loading');
+        if (existing) return existing;
+
+        const banner = document.createElement('div');
+        banner.id = 'oc-threshold-loading';
+        banner.textContent = 'Loading JTF OC Thresholds...';
+        banner.style.background = '#1f1f1f';
+        banner.style.color = '#ccc';
+        banner.style.padding = '8px';
+        banner.style.marginBottom = '10px';
+        banner.style.textAlign = 'center';
+        banner.style.fontWeight = 'bold';
+        banner.style.border = '1px solid #333';
+        banner.style.borderRadius = '4px';
+
+        container.prepend(banner);
+        return banner;
+    }
+
+    function removeLoadingBanner() {
+        const banner = document.getElementById('oc-threshold-loading');
+        if (banner) banner.remove();
+    }
+
     async function processOCPage() {
         log("Processing page...");
         //For each recruiting crime...
         for (const crimeDiv of document.querySelectorAll('div[data-oc-id]')) {
-            const crimeTitleEl = crimeDiv.querySelector('p.panelTitle___aoGuV');
-            const crimeTitle = crimeTitleEl?.textContent
-            ?.normalize("NFKC") // normalize Unicode
-            .replace(/\s+/g, ' ') // normalize all whitespace
-            .trim();
-
+            const crimeTitleEl = crimeDiv.querySelector('p[class^="panelTitle"]');
+            const crimeTitle = crimeTitleEl?.textContent?.normalize("NFKC").replace(/\s+/g,' ').trim();
             if (!crimeTitle) return;
-            log("Found crime - ",crimeTitle);
-            const crimeIsPaused = crimeDiv.querySelector('div.paused___oWz6S');
-            const crimeIsExpiring = crimeDiv.querySelector('div.expiring___u6hcI');
+
+            // Determine crime state (yellow/paused/expiring, not started)
+            const crimeIsPaused = crimeDiv.querySelector('div[class^="paused"]');
+            const crimeIsExpiring = crimeDiv.querySelector('div[class^="expiring"]');
             const crimeIsYellow = !!(crimeIsPaused || crimeIsExpiring);
-            log("Crime is yellow? ",crimeIsYellow);
-            const crimeIsNotStarted = crimeDiv.querySelector('div.recruiting___bFcBU');
-            log("CrimeIsNotStarted is: ",crimeIsNotStarted);
+            const crimeIsNotStarted = crimeDiv.querySelector('div[class^="recruiting"]');
 
-            //Scrape the level of the crime
-            const levelEl = crimeDiv.querySelector('.levelValue___TE4qC');
+            const levelEl = crimeDiv.querySelector('[class^="levelValue"]');
+            if (!levelEl) { log("No level element found for", crimeTitle); return; }
             const level = parseInt(levelEl.textContent.trim(), 10);
-            log("Crime level is: ",level);
 
-            //For each open slot in the crime...
-            for (const slot of crimeDiv.querySelectorAll('.wrapper___Lpz_D.waitingJoin___jq10k')) {
-                const roleEl = slot.querySelector('.title___UqFNy');
-                const chanceEl = slot.querySelector('.successChance___ddHsR');
+            //const slots = crimeDiv.querySelectorAll('[class^="wrapper"][class*="waitingJoin"]');
+            //slots.forEach(slot => {
+            for (const slot of crimeDiv.querySelectorAll('[class^="wrapper"][class*="waitingJoin"]')) {
+                const roleEl = slot.querySelector('[class^="title"]');
+                const chanceEl = slot.querySelector('[class^="successChance"]');
                 if (!roleEl || !chanceEl) return;
+
                 const role = roleEl.textContent.trim();
                 const chance = parseInt(chanceEl.textContent.trim(), 10);
                 var min = await getThreshold(crimeTitle, level, role, crimeIsYellow, crimeIsNotStarted);
                 log("Found open role - ",crimeTitle,", ",role,", with success chance ",chance," and threshold ",min);
                 slot.querySelectorAll('.oc-threshold').forEach(e => e.remove());
+
+                // Create new threshold note element
                 const note = document.createElement('div');
                 note.className = 'oc-threshold';
                 note.style.fontSize = '12px';
                 note.style.fontWeight = 'bold';
                 note.style.textAlign = 'center';
+                note.style.whiteSpace = 'pre-line';
+
                 if(min === null) { // If min is null, something went wrong with getting the threshold from the published CSV, so bail out
                     log(">> There was an error looking up the threshold for ",crimeTitle,", ",role,". Bailing out and moving to the next slot...");
                     return;
                 }
                 if (min === UNKNOWN_THRESHOLD){
-                    //if min is UNKNOWN_THRESHOLD, then we don't know what the CPR thresholds for this crime are
-                    note.textContent = `⚠️ Undefined ⚠️\nCheck with Miz`;
+                    note.textContent = `⚠️\nNot yet defined`;
                     note.style.color = 'orange';
-                    note.style.whiteSpace = 'pre-line';
-                }else{
-                    if (chance >= min) {
-                        //if the CPR pass rate is greater than or equal to the threshold for this crime role
-                        note.textContent = `✅ OK\n(Requires ≥ ${min})`;
-                        note.style.whiteSpace = 'pre-line';
-                        note.style.color = 'limegreen';
-                    } else {
-                        //if the CPR pass rate is less than the threshold for this crime role
-                        note.textContent = (min===101) ? (`❌❌❌\n(Do Not Join!)`) : (`❌ Too low\n(Requires ≥ ${min})`);
-                        note.style.whiteSpace = 'pre-line';
-                        note.style.color = '#cc0000';
-                    }
+                } else if (chance >= min) {
+                    note.textContent = `✅ OK\n(Requires ≥ ${min})`;
+                    note.style.color = 'limegreen';
+                } else {
+                    note.textContent = (min==101) ? `❌❌❌\n(Do Not Join!)` : `❌ Too low\n(Requires ≥ ${min})`;
+                    note.style.color = '#cc0000';
                 }
+
                 slot.prepend(note);
             };
         };
     }
 
-    // Wait until at least one OC block appears
-    function waitForOCContent() {
-        if (document.querySelector('div[data-oc-id]')) {
-            log("OC content detected. Running processOCPage...");
-            processOCPage();
-            return; // stop – content is ready
+    // --- SPA-safe observer ---
+    // Why SPA-safe? Torn uses a single-page app design, meaning page content can change
+    // without a full page reload. This code ensures our script runs whenever the relevant
+    // DOM elements are added or updated.
+    //
+    // Note: The DOM is constantly changing, so we add a debounce timeout to throttle the
+    // script a bit, the lower the number, the faster the thresholds will populate.
+    function waitForOrganizeWrap(callback) {
+        const existing = document.querySelector('div.organize-wrap');
+        if (existing) {
+            log(".organize-wrap already exists");
+            callback(existing);
+            return;
         }
 
-        // If not ready, keep watching
-        const observer = new MutationObserver(() => {
-            if (document.querySelector('div[data-oc-id]')) {
-                log("OC content appeared via MutationObserver. Running processOCPage...");
+        // Observe the entire body until the container appears
+        log("Waiting for .organize-wrap to appear...");
+        const bodyObserver = new MutationObserver((mutations, observer) => {
+            const el = document.querySelector('div.organize-wrap');
+            if (el) {
+                log(".organize-wrap detected via MutationObserver");
                 observer.disconnect();
-                processOCPage();
+                callback(el);
             }
         });
 
-        observer.observe(document.body, { childList: true, subtree: true });
+        bodyObserver.observe(document.body, { childList: true, subtree: true });
     }
 
-//Add event handler to "Recruiting" button to re-run the script if switching from another tab on the OCs page
-const recruitingButton = document.querySelector('button.button___cwmLf')
-recruitingButton.addEventListener("click", function (e) {
-    setTimeout(function(){processOCPage();}, 1000);
-});
-// Run the loader
-waitForOCContent();
+    waitForOrganizeWrap((organizedWrap) => {
+        log("Attaching MutationObserver to .organize-wrap");
+
+        let debounceTimeout;
+        const observer = new MutationObserver(() => {
+            // Handle DOM changes in the SPA
+            log("Mutation detected in .organize-wrap");
+            if (debounceTimeout) clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+                log("Running processOCPage from observer");
+                processOCPage();
+            }, 1000); // debounce to avoid rapid multiple runs
+        });
+
+        observer.observe(organizedWrap, { childList: true, subtree: true });
+
+        // Initial run when page loads
+        // Show loading banner immediately
+        const banner = showLoadingBanner(organizedWrap);
+
+        // Ensure thresholds are loaded first
+        loadThresholdsFromSheet().then(() => {
+            removeLoadingBanner();
+            processOCPage();
+        });
+    });
 
 })();
