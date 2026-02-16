@@ -10,6 +10,8 @@
 // @grant        GM_xmlhttpRequest
 // @connect      docs.google.com
 // @connect      googleusercontent.com
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -29,15 +31,32 @@
     let thresholdsLoaded = false;
     //----------------
 
+    const CACHE_CSV_KEY = "thresholdCSV";
+    const CACHE_TIME_KEY = "csvCacheTime";
+    const CACHE_DURATION = 86400000; // 24 hours in ms
+
     async function loadThresholdsFromSheet() {
         if (thresholdsLoaded) return sheetThresholds;
-
+        // Check cache first
+        const cacheTime = GM_getValue(CACHE_TIME_KEY, 0);
+        if (cacheTime && Date.now() - cacheTime < CACHE_DURATION) {
+            const csvText = GM_getValue(CACHE_CSV_KEY, "");
+            if (csvText) {
+                sheetThresholds = parseThresholdCSV(csvText);
+                thresholdsLoaded = true;
+                console.log("[JTF OC Thresholds] Using cached thresholds");
+                return sheetThresholds;
+            }
+        }
+        // Fetch fresh
         return new Promise((resolve) => {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: THRESHOLDS_CSV_URL,
                 onload: (response) => {
                     try {
+                        GM_setValue(CACHE_CSV_KEY, response.responseText);
+                        GM_setValue(CACHE_TIME_KEY, Date.now());
                         sheetThresholds = parseThresholdCSV(response.responseText);
                         thresholdsLoaded = true;
                         console.log("[JTF OC Thresholds] Thresholds loaded from Google Sheets");
