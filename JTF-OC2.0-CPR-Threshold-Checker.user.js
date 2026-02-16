@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      0.9
+// @version      1.0
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page (SPA-safe, debug-ready)
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -119,6 +119,31 @@
         return Number(match.DefaultThreshold)-adjustment;
     }
 
+    function showLoadingBanner(container) {
+        const existing = document.getElementById('oc-threshold-loading');
+        if (existing) return existing;
+
+        const banner = document.createElement('div');
+        banner.id = 'oc-threshold-loading';
+        banner.textContent = 'Loading JTF OC Thresholds...';
+        banner.style.background = '#1f1f1f';
+        banner.style.color = '#ccc';
+        banner.style.padding = '8px';
+        banner.style.marginBottom = '10px';
+        banner.style.textAlign = 'center';
+        banner.style.fontWeight = 'bold';
+        banner.style.border = '1px solid #333';
+        banner.style.borderRadius = '4px';
+
+        container.prepend(banner);
+        return banner;
+    }
+
+    function removeLoadingBanner() {
+        const banner = document.getElementById('oc-threshold-loading');
+        if (banner) banner.remove();
+    }
+
     async function processOCPage() {
         log("Processing page...");
         //For each recruiting crime...
@@ -224,7 +249,14 @@
         observer.observe(organizedWrap, { childList: true, subtree: true });
 
         // Initial run when page loads
-        processOCPage();
+        // Show loading banner immediately
+        const banner = showLoadingBanner(organizedWrap);
+
+        // Ensure thresholds are loaded first
+        loadThresholdsFromSheet().then(() => {
+            removeLoadingBanner();
+            processOCPage();
+        });
     });
 
 })();
