@@ -7,6 +7,9 @@
 // @match        https://www.torn.com/factions.php?step=your*
 // @updateURL    https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
 // @downloadURL  https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
+// @grant        GM_xmlhttpRequest
+// @connect      docs.google.com
+// @connect      googleusercontent.com
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -16,146 +19,115 @@
     // --- Debugging helpers ---
     const DEBUG = false;
     const log = (...args) => DEBUG && console.log('[JTF OC Thresholds]', ...args);
+    const yellowAdjustment = 5;
+    const UNKNOWN_THRESHOLD = -1;
 
-    const yellowAdjustment = 5; // reduce threshold if crime is paused/expiring
+    // Thresholds table from Google sheets - published as a CSV
+    const THRESHOLDS_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSYqL3ZcxOPexCFM5LcmnEu_mBNfWD1P5k6xTOAHVKFhQaHGUdU24y3Oh1O1sxzpTqEEBBV3kE8bi6L/pub?output=csv";
+    let sheetThresholds = null;
+    let thresholdsLoaded = false;
+    //----------------
 
-    // --- Threshold table ---
-    const thresholds = {
-        // Map of crimes -> role thresholds. Supports "All roles" and "All roles unstarted"
-        "Ace in the Hole":{
-            "Hacker":68,
-            "Muscle #2":68,
-            "Imitator":64,
-            "Muscle #1":64,
-            "Driver":58
-        },
-        "Manifest Cruelty":{
-            "All roles":101
-        },
-        "Stacking the Deck":{
-            "Impersonator":72,
-            "Hacker":66,
-            "Cat Burglar":64,
-            "Driver":56
-        },
-        "Break the Bank":{
-            "Muscle #3":69,
-            "Thief #2":69,
-            "Muscle #1":65,
-            "Robber":65,
-            "Muscle #2":62,
-            "Thief #1":55
-        },
-        "Clinical Precision":{
-            "Cat Burglar":68,
-            "Cleaner":68,
-            "Imitator":72,
-            "Assassin":65
-        },
-        "Blast from the Past":{
-            "Muscle":70,
-            "Engineer":70,
-            "Bomber":70,
-            "Picklock #1":65,
-            "Hacker":65,
-            "Picklock #2":60
-        },
-        "Bidding War":{
-            "Robber #3":72,
-            "Robber #2":68,
-            "Bomber #2":68,
-            "Driver":65,
-            "Bomber #1":60,
-            "Robber #1":60
-        },
-        "Honey Trap":{
-            "Muscle #2":70,
-            "Muscle #1":65,
-            "Enforcer":65
-        },
-        "Sneaky Git Grab":{
-            "Pickpocket":75,
-            "Imitator":65,
-            "Techie":65,
-            "Hacker":62
-        },
-        "No Reserve":{
-            "All roles":70
-        },
-        "Leave No Trace":{
-            "All roles":70,
-            "All roles unstarted":65
-        },
-        "Guardian Ángels":{
-            "All roles":70,
-            "All roles unstarted":65
-        },
-        "Counter Offer":{
-            "All roles":70,
-            "All roles unstarted":65
-        },
-        "Snow Blind":{
-            "All roles":70,
-            "All roles unstarted":65
-        },
-        "Stage Fright":{
-            "All roles":70,
-            "All roles unstarted":65
-        },
-        "Market Forces":{
-            "All roles":50
-        },
-        "Smoke and Wing Mirrors":{
-            "All roles":50
-        },
-        "Gaslight the Way":{
-            "All roles":65
-        },
-        "All other crimes":{
-            "All roles":45
-        }
-    };
+    async function loadThresholdsFromSheet() {
+        if (thresholdsLoaded) return sheetThresholds;
 
-    // --- Threshold calculation ---
-    function getThreshold(crime, level, role, yellow, unstarted) {
-        log("Getting thresholds for:", crime, "-", role);
-        const table = thresholds[crime];
-        const adjustment = yellow ? yellowAdjustment : 0; // reduce threshold if paused/expiring
-
-        if (table) {
-            if (table[role] !== undefined) { // exact match for role
-                log("Exact threshold found:", table[role], "- adjustment:", adjustment);
-                return table[role] - adjustment;
-            }
-            if (unstarted) { // crime hasn't started yet
-                if (table["All roles unstarted"] !== undefined) {
-                    log("Unstarted threshold found:", table["All roles unstarted"], "- adjustment:", adjustment);
-                    return table["All roles unstarted"] - adjustment;
-                } else if (table["All roles"] !== undefined) { // fallback to started threshold
-                    log("Started threshold fallback:", table["All roles"], "- adjustment:", adjustment);
-                    return table["All roles"] - adjustment;
+        return new Promise((resolve) => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: THRESHOLDS_CSV_URL,
+                onload: (response) => {
+                    try {
+                        sheetThresholds = parseThresholdCSV(response.responseText);
+                        thresholdsLoaded = true;
+                        console.log("[JTF OC Thresholds] Thresholds loaded from Google Sheets");
+                        resolve(sheetThresholds);
+                    } catch (err) {
+                        console.error("[JTF OC Thresholds] Failed to parse thresholds", err);
+                        resolve(null);
+                    }
+                },
+                onerror: (err) => {
+                    console.error("[JTF OC Thresholds] Failed to load thresholds", err);
+                    resolve(null);
                 }
-            } else if (table["All roles"] !== undefined) { // crime already started
-                log("Started threshold found:", table["All roles"], "- adjustment:", adjustment);
-                return table["All roles"] - adjustment;
-            }
-        }
-
-        // fallback for low-level crimes or undefined thresholds
-        if (level < 3) {
-            log("Low-level crime fallback threshold:", thresholds["All other crimes"]["All roles"], "- adjustment:", adjustment);
-            return thresholds["All other crimes"]["All roles"] - adjustment;
-        }
-
-        log("No CPR thresholds defined for:", crime);
-        return null;
+            });
+        });
     }
 
-    // --- Main processing function ---
-    function processOCPage() {
-        log("processOCPage called...");
-        const crimeDivs = document.querySelectorAll('div[data-oc-id]'); // select all open crime blocks
-        log("Found", crimeDivs.length, "OC blocks");
+    function parseThresholdCSV(csvText) {
+        const lines = csvText.trim().split("\n");
+        const headers = lines.shift().split(",").map(h => h.trim());
+        const rows = lines.map(line => {
+            const values = line.split(",").map(v => v.trim());
+            const row = {};
+            headers.forEach((h, i) => row[h] = values[i] || "");
+            return row;
+        });
+
+        return rows;
+    }
+
+    async function getThreshold(crime, level, role, isYellow, isNotStarted) {
+        log("Getting thresholds for: ",crime," - ",role);
+        const adjustment = isYellow ? yellowAdjustment : 0;//if isYellow is true, we will adjust all thresholds by the value of the global 'yellowAdjustment'
+        const rows = await loadThresholdsFromSheet();
+        if (!rows){
+            log("!!! No rows were found in the threshold sheet! Something went wrong !!!");
+            return null;
+        }
+
+        // 1. Exact crime + exact role
+        let match = rows.find(r =>
+            r.Crime === crime &&
+            r.Role === role
+        );
+        if(match) log("Scenario A: Threshold for ",role," in ",crime," found to be ",match.DefaultThreshold);
+
+
+        // 2. Exact crime + All roles
+        if (!match) {
+            match = rows.find(r =>
+                r.Crime === crime &&
+                r.Role === "All roles"
+            );
+        }
+        if(match) log("Scenario B: Threshold for ",role," not found in ",crime,", so using all-roles threshold of ",match.DefaultThreshold);
+
+        // 3. All other crimes fallback (optional)
+        if (!match) {
+            match = rows.find(r =>
+                r.Crime === "All other crimes" &&
+                r.Role === "All roles"
+            );
+            if (!match){
+                log("!!!! Uh oh -  A default 'all other crimes' fallback was not found in the thresholds CSV!");
+                return null;
+            }
+            if(level>2){
+                log("Scenario D: no thresholds found for ",crime,", and the level is above 2, so returning UNKNOWN_THRESHOLD (value: ",UNKNOWN_THRESHOLD,")");
+                return UNKNOWN_THRESHOLD;
+            }
+            log("Scenario C: no thresholds found for ",crime,", and the level is 1 or 2, so returning the 'All other crimes' threshold");
+        }
+
+        if (isNotStarted && match.UnstartedThreshold != "") {
+            log("Crime ",crime,", is unstarted and there is an unstarted override threshold for this crime and role, so returning the unstarted threshold of ",match.UnstartedThreshold,"-",adjustment);
+            return Number(match.UnstartedThreshold)-adjustment;
+        }
+        log("Crime ",crime,", is either started or and there is no unstarted override threshold for this crime and role, so returning the default threshold of ",match.DefaultThreshold,"-",adjustment);
+        return Number(match.DefaultThreshold)-adjustment;
+    }
+
+    async function processOCPage() {
+        log("Processing page...");
+        //For each recruiting crime...
+        for (const crimeDiv of document.querySelectorAll('div[data-oc-id]')) {
+            const crimeTitleEl = crimeDiv.querySelector('p.panelTitle___aoGuV');
+            const crimeTitle = crimeTitleEl?.textContent
+            ?.normalize("NFKC") // normalize Unicode
+            .replace(/\s+/g, ' ') // normalize all whitespace
+            .trim();
 
         crimeDivs.forEach(crimeDiv => {
             const crimeTitleEl = crimeDiv.querySelector('p[class^="panelTitle"]');
@@ -180,9 +152,8 @@
 
                 const role = roleEl.textContent.trim();
                 const chance = parseInt(chanceEl.textContent.trim(), 10);
-                const min = getThreshold(crimeTitle, level, role, crimeIsYellow, crimeIsNotStarted);
-
-                // Remove old threshold indicators before adding new ones
+                var min = await getThreshold(crimeTitle, level, role, crimeIsYellow, crimeIsNotStarted);
+                log("Found open role - ",crimeTitle,", ",role,", with success chance ",chance," and threshold ",min);
                 slot.querySelectorAll('.oc-threshold').forEach(e => e.remove());
 
                 // Create new threshold note element
@@ -193,7 +164,11 @@
                 note.style.textAlign = 'center';
                 note.style.whiteSpace = 'pre-line';
 
-                if (!min) {
+                if(min === null) { // If min is null, something went wrong with getting the threshold from the published CSV, so bail out
+                    log(">> There was an error looking up the threshold for ",crimeTitle,", ",role,". Bailing out and moving to the next slot...");
+                    return;
+                }
+                if (min === UNKNOWN_THRESHOLD){
                     note.textContent = `⚠️\nNot yet defined`;
                     note.style.color = 'orange';
                 } else if (chance >= min) {
@@ -201,12 +176,12 @@
                     note.style.color = 'limegreen';
                 } else {
                     note.textContent = (min==101) ? `❌❌❌\n(Do Not Join!)` : `❌ Too low\n(Requires ≥ ${min})`;
-                    note.style.color = '#dd0000';
+                    note.style.color = '#cc0000';
                 }
 
                 slot.prepend(note);
-            });
-        });
+            };
+        };
     }
 
     // --- SPA-safe observer ---
