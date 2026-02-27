@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      1.1
+// @version      1.2
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page (SPA-safe, debug-ready)
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -125,7 +125,7 @@
 
         const banner = document.createElement('div');
         banner.id = 'oc-threshold-loading';
-        banner.textContent = 'Loading JTF OC Thresholds...';
+        banner.textContent = 'Loading JTF OC Thresholds... ⏳';
         banner.style.background = '#1f1f1f';
         banner.style.color = '#ccc';
         banner.style.padding = '8px';
@@ -153,17 +153,17 @@
             if (!crimeTitle) return;
 
             // Determine crime state (yellow/paused/expiring, not started)
-            const crimeIsPaused = crimeDiv.querySelector('div[class^="paused"]');
-            const crimeIsExpiring = crimeDiv.querySelector('div[class^="expiring"]');
+            const crimeIsPaused = crimeDiv.querySelector('div[class*="paused"]');
+            const crimeIsExpiring = crimeDiv.querySelector('div[class*="expiring"]');
             const crimeIsYellow = !!(crimeIsPaused || crimeIsExpiring);
-            const crimeIsNotStarted = crimeDiv.querySelector('div[class^="recruiting"]');
+            const crimeIsNotStarted = crimeDiv.querySelector('div[class*="recruiting"]');
+
+            console.log("Found crime: ", crimeTitle," with yellow status: ",crimeIsYellow,", paused status: ",crimeIsPaused,", and expiring status: ",crimeIsExpiring);
 
             const levelEl = crimeDiv.querySelector('[class^="levelValue"]');
             if (!levelEl) { log("No level element found for", crimeTitle); return; }
             const level = parseInt(levelEl.textContent.trim(), 10);
 
-            //const slots = crimeDiv.querySelectorAll('[class^="wrapper"][class*="waitingJoin"]');
-            //slots.forEach(slot => {
             for (const slot of crimeDiv.querySelectorAll('[class^="wrapper"][class*="waitingJoin"]')) {
                 const roleEl = slot.querySelector('[class^="title"]');
                 const chanceEl = slot.querySelector('[class^="successChance"]');
