@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
-// @version      1.2
+// @version      1.3
 // @description  Shows if you meet faction CPR thresholds for open crime roles on OC recruiting page (SPA-safe, debug-ready)
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
@@ -62,6 +62,7 @@
             const values = line.split(",").map(v => v.trim());
             const row = {};
             headers.forEach((h, i) => row[h] = values[i] || "");
+            log("CSV Row: ", row);
             return row;
         });
 
@@ -70,7 +71,6 @@
 
     async function getThreshold(crime, level, role, isYellow, isNotStarted) {
         log("Getting thresholds for: ",crime," - ",role);
-        const adjustment = isYellow ? yellowAdjustment : 0;//if isYellow is true, we will adjust all thresholds by the value of the global 'yellowAdjustment'
         const rows = await loadThresholdsFromSheet();
         if (!rows){
             log("!!! No rows were found in the threshold sheet! Something went wrong !!!");
@@ -111,12 +111,14 @@
             log("Scenario C: no thresholds found for ",crime,", and the level is 1 or 2, so returning the 'All other crimes' threshold");
         }
 
+        const adjustment = isYellow && Number(match.DefaultThreshold) !== 101 ? yellowAdjustment : 0; //If the status of the crime is yellow, reduce all thresholds by yellowAdjustment (global) value unless the threshold is 101
+
         if (isNotStarted && match.UnstartedThreshold != "") {
             log("Crime ",crime,", is unstarted and there is an unstarted override threshold for this crime and role, so returning the unstarted threshold of ",match.UnstartedThreshold,"-",adjustment);
             return Number(match.UnstartedThreshold)-adjustment;
         }
         log("Crime ",crime,", is either started or and there is no unstarted override threshold for this crime and role, so returning the default threshold of ",match.DefaultThreshold,"-",adjustment);
-        return Number(match.DefaultThreshold)-adjustment;
+            return Number(match.DefaultThreshold)-adjustment;
     }
 
     function showLoadingBanner(container) {
