@@ -485,12 +485,14 @@
         const hoursUntilPause = isPaused || filledSlots.length === 0
             ? 0
             : filledSlots.reduce((total, slot) => total + (24 * (1 - slot.progress)), 0);
-
+       
+        const timingNeutralHours = 1.5; //with how many hours remaining before the OC pauses is the priority of this OC equal to an OC that's not yet started?
         const timingFactor = isPaused || filledSlots.length === 0
             ? 1
             : SCORE_CONFIG.timingFloor +
-                ((1 - SCORE_CONFIG.timingFloor) *
-                    (2 ** (-hoursUntilPause / SCORE_CONFIG.timingHalfLifeHours)));
+              ((1 - SCORE_CONFIG.timingFloor) *
+               (2 ** ((timingNeutralHours - hoursUntilPause) /
+                      SCORE_CONFIG.timingHalfLifeHours)));
 
         const pausedRescueFactor = isPaused
             ? 1 + (SCORE_CONFIG.pausedBoostPerMember * filledSlots.length)
