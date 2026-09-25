@@ -2,7 +2,7 @@
 // @name         JTF OC2.0 CPR Threshold Checker
 // @namespace    https://torn.com/
 // @version      2.0
-// @description  Shows eligibility based on CPR thresholds and recommends the best available OC role using profitability and live planning urgency
+// @description  Shows CPR thresholds and recommends the best available OC role using profitability and live planning urgency
 // @author       SiliconRain
 // @match        https://www.torn.com/factions.php?step=your*
 // @updateURL    https://raw.githubusercontent.com/SiliconRain/JTF-OC2-Threshold-Checker/refs/heads/main/JTF-OC2.0-CPR-Threshold-Checker.user.js
@@ -485,8 +485,8 @@
         const hoursUntilPause = isPaused || filledSlots.length === 0
             ? 0
             : filledSlots.reduce((total, slot) => total + (24 * (1 - slot.progress)), 0);
-       
-        const timingNeutralHours = 1.5; //with how many hours remaining before the OC pauses is the priority of this OC equal to an OC that's not yet started?
+
+        const timingNeutralHours = 24; //with how many hours remaining before the OC pauses is the priority of this OC equal to an OC that's not yet started?
         const timingFactor = isPaused || filledSlots.length === 0
             ? 1
             : SCORE_CONFIG.timingFloor +
