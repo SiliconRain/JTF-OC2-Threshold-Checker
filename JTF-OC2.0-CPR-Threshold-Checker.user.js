@@ -16,7 +16,7 @@
 (() => {
     'use strict';
 
-    const DEBUG = true;
+    const DEBUG = false;
     const log = (...args) => DEBUG && console.log('[JTF OC Recommendations]', ...args);
     const warn = (...args) => console.warn('[JTF OC Recommendations]', ...args);
 
@@ -46,6 +46,10 @@
     let debounceTimeout = null;
     let nextOriginalOrder = 0;
     let recommendedSortEnabled = readSortPreference();
+    let joinedModeActive = false;
+    let joinPendingCrimeId = null;
+    let joinPendingTimeout = null;
+    let frozenDisplayOrder = null;
 
     function normalizeText(value) {
         return String(value ?? '')
@@ -304,19 +308,30 @@
     }
 
     function updateSortButton(button) {
-        setText(button, recommendedSortEnabled ? 'Recommended order: ON' : 'Recommended order: OFF');
-        button.title = recommendedSortEnabled
-            ? 'OCs are sorted by JTF recommendation priority. Click to restore Torn order.'
-            : 'OCs are in Torn order. Click to sort by JTF recommendation priority.';
+        const recommendationsPaused = !DEBUG && (joinedModeActive || joinPendingCrimeId !== null);
+        const statusText = joinedModeActive
+            ? 'Recommendations paused: OC joined'
+            : 'Recommendations paused: joining OC...';
+
+        setText(button, recommendationsPaused
+            ? statusText
+            : (recommendedSortEnabled ? 'Recommended order: ON' : 'Recommended order: OFF'));
+        button.title = recommendationsPaused
+            ? 'Recommendations and sorting are paused while you are joining or participating in an OC.'
+            : (recommendedSortEnabled
+                ? 'OCs are sorted by JTF recommendation priority. Click to restore Torn order.'
+                : 'OCs are in Torn order. Click to sort by JTF recommendation priority.');
+        button.disabled = recommendationsPaused;
         setStyles(button, {
-            background: recommendedSortEnabled ? '#315b28' : '#333',
+            background: recommendationsPaused ? '#3f4b54' : (recommendedSortEnabled ? '#315b28' : '#333'),
             color: '#fff',
             border: '1px solid #777',
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: recommendationsPaused ? 'default' : 'pointer',
             padding: '5px 9px',
             fontSize: '12px',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            opacity: recommendationsPaused ? '0.9' : '1'
         });
     }
 
@@ -340,6 +355,7 @@
         button.type = 'button';
         updateSortButton(button);
         button.addEventListener('click', () => {
+            if (!DEBUG && joinedModeActive) return;
             recommendedSortEnabled = !recommendedSortEnabled;
             saveSortPreference();
             updateSortButton(button);
@@ -394,6 +410,61 @@
         }
 
         return slots;
+    }
+
+    function getCurrentPlayerId() {
+        try {
+            const tornUserValue = document.querySelector('#torn-user')?.value;
+            const playerId = tornUserValue ? JSON.parse(tornUserValue)?.id : null;
+            if (playerId !== null && playerId !== undefined && String(playerId)) {
+                return String(playerId);
+            }
+        } catch (error) {
+            log('Unable to read player ID from #torn-user', error);
+        }
+
+        const playerId = document.querySelector('script[playerid]')?.getAttribute('playerid');
+        return playerId ? String(playerId) : null;
+    }
+
+    function getProfilePlayerId(link) {
+        try {
+            return new URL(link.getAttribute('href') || link.href, location.origin)
+                .searchParams.get('XID');
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function findJoinedMembership(crimeDivs) {
+        const currentPlayerId = getCurrentPlayerId();
+
+        for (const crimeDiv of crimeDivs) {
+            for (const slot of getSlotElements(crimeDiv)) {
+                if (String(slot.className).includes('waitingJoin')) continue;
+
+                const hasCurrentPlayer = currentPlayerId &&
+                    Array.from(slot.querySelectorAll('a[href*="profiles.php"]'))
+                        .some(link => getProfilePlayerId(link) === currentPlayerId);
+                const hasLeaveRole = Array.from(slot.querySelectorAll('button'))
+                    .some(button => canonicalKey(button.textContent) === 'leave role');
+
+                if (!hasCurrentPlayer && !hasLeaveRole) continue;
+
+                const role = normalizeText(
+                    slot.querySelector('button[class^="slotHeader"] [class^="title"]')?.textContent
+                );
+                return {
+                    crimeDiv,
+                    slot,
+                    role,
+                    crimeId: crimeDiv.getAttribute('data-oc-id') || '',
+                    detectedBy: hasCurrentPlayer ? 'player ID' : 'Leave Role button'
+                };
+            }
+        }
+
+        return null;
     }
 
     function getPlanningProgress(slot, isOpen) {
@@ -672,7 +743,56 @@
         if (banner.title !== tooltip) banner.title = tooltip;
     }
 
+    function updateSortControl() {
+        const button = document.querySelector('#oc-recommendation-controls button');
+        if (button) updateSortButton(button);
+    }
+
+    function removeJoinedBanners() {
+        document.querySelectorAll('.oc-joined-banner').forEach(banner => banner.remove());
+    }
+
+    function clearRecommendationUI(crimeDivs) {
+        for (const crimeDiv of crimeDivs) {
+            crimeDiv.querySelector('.oc-priority-banner')?.remove();
+            crimeDiv.querySelectorAll('.oc-threshold').forEach(note => note.remove());
+        }
+    }
+
+    function renderJoinedMode(crimeDivs, membership) {
+        clearRecommendationUI(crimeDivs);
+        document.querySelectorAll('.oc-joined-banner').forEach(banner => {
+            if (!membership.crimeDiv.contains(banner)) banner.remove();
+        });
+
+        const titleElement = membership.crimeDiv.querySelector('p[class^="panelTitle"]');
+        if (!titleElement) return;
+
+        let banner = membership.crimeDiv.querySelector('.oc-joined-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.className = 'oc-joined-banner';
+            titleElement.insertAdjacentElement('afterend', banner);
+        }
+        const roleText = membership.role ? ` · ${membership.role}` : '';
+        setText(banner, `✅ YOU HAVE JOINED THIS OC${roleText}\nRecommendations paused`);
+        setStyles(banner, {
+            color: '#d8f3dc',
+            background: 'rgba(45, 85, 45, 0.24)',
+            border: '1px solid #5f8f5f',
+            borderRadius: '4px',
+            padding: '4px 6px',
+            margin: '3px 0 5px',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            lineHeight: '1.25',
+            whiteSpace: 'pre-line'
+        });
+        banner.title = 'Recommendations and automatic sorting are paused while you are participating in this OC.';
+    }
+
     function renderCrimes(crimes) {
+        removeJoinedBanners();
         for (const crime of crimes) {
             renderCrimeBanner(crime);
             for (const slot of crime.slots.filter(item => item.isOpen)) {
@@ -680,6 +800,111 @@
                 renderSlotNote(slot, selectedRank);
             }
         }
+    }
+
+    function groupCrimeElements(crimeDivs) {
+        const groupedByParent = new Map();
+
+        for (const crimeDiv of crimeDivs) {
+            const parent = crimeDiv.parentElement;
+            if (!parent) continue;
+            if (!groupedByParent.has(parent)) groupedByParent.set(parent, []);
+            groupedByParent.get(parent).push(crimeDiv);
+        }
+
+        return groupedByParent;
+    }
+
+    function captureCurrentDisplayOrder(crimeDivs) {
+        const snapshot = new Map();
+
+        for (const [parent, group] of groupCrimeElements(crimeDivs)) {
+            const display = getComputedStyle(parent).display;
+            const supportsOrder = display.includes('flex') || display.includes('grid');
+            const ordered = group.map((element, domIndex) => ({
+                element,
+                domIndex,
+                order: supportsOrder
+                    ? Number.parseFloat(getComputedStyle(element).order) || 0
+                    : domIndex
+            })).sort((a, b) => (a.order - b.order) || (a.domIndex - b.domIndex));
+
+            ordered.forEach((item, index) => {
+                const crimeId = item.element.getAttribute('data-oc-id');
+                if (crimeId) snapshot.set(crimeId, index);
+            });
+        }
+
+        return snapshot;
+    }
+
+    function applyFrozenDisplayOrder(crimeDivs) {
+        if (!frozenDisplayOrder?.size) return;
+
+        for (const [parent, group] of groupCrimeElements(crimeDivs)) {
+            const target = group.map((element, domIndex) => ({
+                element,
+                domIndex,
+                savedOrder: frozenDisplayOrder.get(element.getAttribute('data-oc-id'))
+            })).sort((a, b) => {
+                const aOrder = a.savedOrder ?? Number.MAX_SAFE_INTEGER;
+                const bOrder = b.savedOrder ?? Number.MAX_SAFE_INTEGER;
+                return (aOrder - bOrder) || (a.domIndex - b.domIndex);
+            });
+
+            const display = getComputedStyle(parent).display;
+            const supportsOrder = display.includes('flex') || display.includes('grid');
+            if (supportsOrder) {
+                target.forEach((item, index) => {
+                    const order = String(index);
+                    if (item.element.style.order !== order) item.element.style.order = order;
+                });
+                continue;
+            }
+
+            const current = Array.from(parent.children)
+                .filter(element => element.matches?.('div[data-oc-id]'));
+            const alreadyFrozen = current.length === target.length &&
+                current.every((element, index) => element === target[index].element);
+            if (!alreadyFrozen) target.forEach(item => parent.appendChild(item.element));
+        }
+    }
+
+    function beginJoinPending(crimeDiv) {
+        if (DEBUG) return;
+
+        const crimeDivs = Array.from(document.querySelectorAll('div[data-oc-id]'));
+        frozenDisplayOrder = captureCurrentDisplayOrder(crimeDivs);
+        joinPendingCrimeId = crimeDiv.getAttribute('data-oc-id') || '';
+        joinedModeActive = false;
+        updateSortControl();
+
+        if (joinPendingTimeout) clearTimeout(joinPendingTimeout);
+        joinPendingTimeout = setTimeout(() => {
+            joinPendingTimeout = null;
+            joinPendingCrimeId = null;
+            frozenDisplayOrder = null;
+            updateSortControl();
+            scheduleProcess(0);
+        }, 15000);
+    }
+
+    function confirmJoinedMode() {
+        if (joinPendingTimeout) clearTimeout(joinPendingTimeout);
+        joinPendingTimeout = null;
+        joinPendingCrimeId = null;
+        joinedModeActive = true;
+        updateSortControl();
+    }
+
+    function leaveJoinedMode() {
+        if (joinPendingTimeout) clearTimeout(joinPendingTimeout);
+        joinPendingTimeout = null;
+        joinPendingCrimeId = null;
+        joinedModeActive = false;
+        frozenDisplayOrder = null;
+        removeJoinedBanners();
+        updateSortControl();
     }
 
     function sortCrimeCards(crimes) {
@@ -732,9 +957,35 @@
 
         processRunning = true;
         try {
-            await loadReferenceData();
-
             const crimeDivs = Array.from(document.querySelectorAll('div[data-oc-id]'));
+            if (!DEBUG) {
+                const membership = findJoinedMembership(crimeDivs);
+
+                if (membership) {
+                    removeLoadingBanner();
+                    confirmJoinedMode();
+                    applyFrozenDisplayOrder(crimeDivs);
+                    renderJoinedMode(crimeDivs, membership);
+                    log('Recommendations paused because the current player has joined an OC', {
+                        crimeId: membership.crimeId,
+                        role: membership.role,
+                        detectedBy: membership.detectedBy
+                    });
+                    return;
+                }
+
+                if (joinPendingCrimeId !== null) {
+                    applyFrozenDisplayOrder(crimeDivs);
+                    updateSortControl();
+                    return;
+                }
+
+                if (joinedModeActive) leaveJoinedMode();
+            }
+
+            await loadReferenceData();
+            removeLoadingBanner();
+
             const crimes = crimeDivs.map(parseCrime).filter(Boolean);
             const ranked = rankCrimes(crimes);
             log('Ranked OCs', ranked.map(crime => ({
@@ -788,6 +1039,16 @@
     waitForOrganizeWrap(organizedWrap => {
         showLoadingBanner(organizedWrap);
 
+        organizedWrap.addEventListener('click', event => {
+            if (DEBUG) return;
+
+            const button = event.target.closest?.('button');
+            if (!button || canonicalKey(button.textContent) !== 'join') return;
+
+            const crimeDiv = button.closest('div[data-oc-id]');
+            if (crimeDiv) beginJoinPending(crimeDiv);
+        }, true);
+
         const observer = new MutationObserver(() => scheduleProcess());
         observer.observe(organizedWrap, {
             childList: true,
@@ -796,13 +1057,7 @@
             attributeFilter: ['class', 'style', 'aria-label']
         });
 
-        loadReferenceData().then(() => {
-            removeLoadingBanner();
-            ensureSortControls(organizedWrap);
-            scheduleProcess(0);
-        }).catch(error => {
-            warn('Failed to load reference data', error);
-            showLoadError(organizedWrap, error);
-        });
+        ensureSortControls(organizedWrap);
+        scheduleProcess(0);
     });
 })();
