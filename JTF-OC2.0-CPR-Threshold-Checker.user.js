@@ -28,6 +28,7 @@
         timingFloor: 0.25,
         timingHalfLifeHours: 24,
         pausedBoostPerMember: 0.25,
+        pausedBaseBoost: 0.5,
         emptyExpiringBaseBoost: 0.25,
         emptyExpiringUrgencyBoost: 0.15,
         maximumStateMultiplier: 2.5
@@ -495,7 +496,7 @@
                       SCORE_CONFIG.timingHalfLifeHours)));
 
         const pausedRescueFactor = isPaused
-            ? 1 + (SCORE_CONFIG.pausedBoostPerMember * filledSlots.length)
+            ? 1 + SCORE_CONFIG.pausedBaseBoost + (SCORE_CONFIG.pausedBoostPerMember * filledSlots.length)
             : 1;
 
         const countdownElement = crimeDiv.querySelector('[class^="title"][aria-label]');
