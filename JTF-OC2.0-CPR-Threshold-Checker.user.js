@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         JTF OC2.0 CPR Threshold Checker
+// @name         JTF OC2.0 CPR Threshold Checker - BETA TESTING VERSION
 // @namespace    https://torn.com/
 // @version      2.0
 // @description  Shows CPR thresholds and recommends the best available OC role using profitability and live planning urgency
