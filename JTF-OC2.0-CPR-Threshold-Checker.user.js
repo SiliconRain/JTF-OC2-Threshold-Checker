@@ -774,8 +774,7 @@
             banner.className = 'oc-joined-banner';
             titleElement.insertAdjacentElement('afterend', banner);
         }
-        const roleText = membership.role ? ` · ${membership.role}` : '';
-        setText(banner, `✅ YOU HAVE JOINED THIS OC${roleText}\nRecommendations paused`);
+        setText(banner, `✅ YOU HAVE JOINED THIS OC\nRecommendations paused`);
         setStyles(banner, {
             color: '#d8f3dc',
             background: 'rgba(45, 85, 45, 0.24)',
