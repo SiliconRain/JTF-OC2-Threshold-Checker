@@ -722,7 +722,7 @@
         }
 
         const label = crime.rank === 1 ? '⭐ BEST OC' : `#${crime.rank} RECOMMENDED`;
-        const text = `${label} · ${crime.selectedRole.role} · ` + describeCrimeTiming(crime);
+        const text = `${label} · ` + describeCrimeTiming(crime);
 
         setText(banner, text);
         setStyles(banner, {
